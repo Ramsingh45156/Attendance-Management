@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendify | Java Backend</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="logo"><i data-lucide="shield-check"></i><span>Attendify</span></div>
+            <nav class="nav-menu">
+                <a href="javascript:void(0)" class="nav-item active" data-view="dashboard"
+                    onclick="app.switchView('dashboard')">
+                    <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item" data-view="students" onclick="app.switchView('students')">
+                    <i data-lucide="users"></i><span>Students</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item" data-view="analytics"
+                    onclick="app.switchView('analytics')">
+                    <i data-lucide="bar-chart-3"></i><span>Analytics</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="total-sessions-toggle">
+                    <span>Sessions:</span>
+                    <input type="number" id="ts-input" class="small-input" onchange="app.setSessions(this.value)">
+                </div>
+                <div class="user-info">
+                    <div class="avatar">AD</div>
+                    <div class="details">
+                        <p class="name">Admin</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="g-search" placeholder="Search students..." oninput="app.render()">
+                </div>
+                <button class="btn btn-primary" onclick="app.showModal()">Add Student</button>
+            </header>
+
+            <section id="dashboard-view" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="icon-bg teal"><i data-lucide="users"></i></div>
+                        <div class="stat-info">
+                            <h3 id="s-total">0</h3>
+                            <p>Total</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-bg purple"><i data-lucide="user-check"></i></div>
+                        <div class="stat-info">
+                            <h3 id="s-in">0</h3>
+                            <p>In Class</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-bg gold"><i data-lucide="percent"></i></div>
+                        <div class="stat-info">
+                            <h3 id="s-avg">0%</h3>
+                            <p>Avg %</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <table id="dash-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Roll</th>
+                                <th>Status</th>
+                                <th>Attend %</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="students-view" class="view">
+                <div class="card">
+                    <table id="manage-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Roll</th>
+                                <th>Course</th>
+                                <th>Total</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manage-list"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="analytics-view" class="view">
+                <div class="analytics-grid">
+                    <div class="card"><canvas id="perfChart"></canvas></div>
+                    <div class="card"><canvas id="courseChart"></canvas></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="student-modal" class="modal">
+        <div class="modal-content card animate-in">
+            <h2>New Student</h2>
+            <form id="s-form" onsubmit="app.addStudent(event)">
+                <div class="form-group"><label>Name</label><input type="text" id="m-name" required></div>
+                <div class="form-group"><label>Roll</label><input type="number" id="m-roll" required></div>
+                <div class="form-group"><label>Course</label><input type="text" id="m-course" required></div>
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn btn-primary btn-block">Add</button>
+                    <button type="button" class="btn btn-outline" onclick="app.hideModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        class AttendanceApp {
+            constructor() {
+                this.students = [];
+                this.totalSessions = parseInt(localStorage.getItem('totalSessions')) || 20;
+                this.charts = {};
+                this.init();
+            }
+
+            async init() {
+                document.getElementById('ts-input').value = this.totalSessions;
+                await this.fetchStudents();
+                this.render();
+                lucide.createIcons();
+            }
+
+            async fetchStudents() {
+                try {
+                    const res = await fetch('/api/students');
+                    this.students = await res.json();
+                } catch (e) { console.error("Fetch failed", e); }
+            }
+
+            render() {
+                const term = document.getElementById('g-search').value.toLowerCase();
+                const filtered = this.students.filter(s => 
+                    s.name.toLowerCase().includes(term) || 
+                    String(s.roll).includes(term)
+                );
+
+                const dashList = document.getElementById('dash-list');
+                const manageList = document.getElementById('manage-list');
+
+                dashList.innerHTML = filtered.map(s => {
+                    const perc = ((s.count / this.totalSessions) * 100).toFixed(0);
+                    return `<tr>
+                        <td><div style="display:flex;align-items:center;gap:10px;"><div class="avatar" style="width:30px;height:30px;font-size:0.8rem">${s.name.substring(0, 2).toUpperCase()}</div>${s.name}</div></td>
+                        <td>#${s.roll}</td>
+                        <td><span class="badge ${s.isIn ? 'warning' : 'success'}">${s.isIn ? 'In Class' : 'Available'}</span></td>
+                        <td><div style="display:flex;align-items:center;gap:8px">${perc}% <div class="progress-container"><div class="progress-bar" style="width:${perc}%"></div></div></div></td>
+                        <td><button onclick="app.toggle('${s.roll}', ${s.isIn})" class="btn btn-sm ${s.isIn ? 'btn-primary' : 'btn-outline'}">${s.isIn ? 'Out' : 'In'}</button></td>
+                    </tr>`;
+                }).join('');
+
+                manageList.innerHTML = filtered.map(s => `<tr>
+                    <td><b>${s.name}</b></td><td>#${s.roll}</td><td>${s.course}</td><td>${s.count}/${this.totalSessions}</td>
+                    <td><button onclick="app.delete('${s.roll}')" class="btn btn-sm btn-outline" style="color:#f56565">Delete</button></td>
+                </tr>`).join('');
+
+                this.updateStats();
+                lucide.createIcons();
+            }
+
+            async toggle(roll, isCurrentlyIn) {
+                await fetch('/api/toggle', {
+                    method: 'POST',
+                    body: `roll=${roll}&isCurrentlyIn=${isCurrentlyIn}`
+                });
+                await this.fetchStudents();
+                this.render();
+            }
+
+            async delete(roll) {
+                await fetch('/api/delete', {
+                    method: 'POST',
+                    body: `roll=${roll}`
+                });
+                await this.fetchStudents();
+                this.render();
+            }
+
+            setSessions(val) {
+                this.totalSessions = parseInt(val) || 1;
+                localStorage.setItem('totalSessions', this.totalSessions);
+                this.render();
+            }
+
+            updateStats() {
+                document.getElementById('s-total').innerText = this.students.length;
+                document.getElementById('s-in').innerText = this.students.filter(s => s.isIn).length;
+                const totalPossible = this.students.length * this.totalSessions;
+                const totalActual = this.students.reduce((acc, s) => acc + s.count, 0);
+                const avg = totalPossible > 0 ? ((totalActual / totalPossible) * 100).toFixed(1) : 0;
+                document.getElementById('s-avg').innerText = avg + '%';
+            }
+
+            switchView(view) {
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById(view + '-view').classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n => {
+                    n.classList.remove('active');
+                    if (n.dataset.view === view) n.classList.add('active');
+                });
+                if (view === 'analytics') this.renderCharts();
+            }
+
+            showModal() { document.getElementById('student-modal').style.display = 'block'; }
+            hideModal() { document.getElementById('student-modal').style.display = 'none'; document.getElementById('s-form').reset(); }
+
+            async addStudent(e) {
+                e.preventDefault();
+                const roll = document.getElementById('m-roll').value;
+                const name = document.getElementById('m-name').value;
+                const course = document.getElementById('m-course').value;
+
+                await fetch('/api/add', {
+                    method: 'POST',
+                    body: `name=${encodeURIComponent(name)}&roll=${roll}&course=${encodeURIComponent(course)}`
+                });
+
+                this.hideModal();
+                await this.fetchStudents();
+                this.render();
+            }
+
+            renderCharts() {
+                const ctxPerf = document.getElementById('perfChart').getContext('2d');
+                const ctxCourse = document.getElementById('courseChart').getContext('2d');
+                if (this.charts.perf) this.charts.perf.destroy();
+                if (this.charts.course) this.charts.course.destroy();
+                this.charts.perf = new Chart(ctxPerf, { type: 'bar', data: { labels: this.students.map(s => s.name), datasets: [{ label: 'Sessions', data: this.students.map(s => s.count), backgroundColor: '#3d7b82' }] } });
+                const cMap = {}; this.students.forEach(s => cMap[s.course] = (cMap[s.course] || 0) + 1);
+                this.charts.course = new Chart(ctxCourse, { type: 'doughnut', data: { labels: Object.keys(cMap), datasets: [{ data: Object.values(cMap), backgroundColor: ['#3d7b82', '#805ad5', '#d69e2e'] }] } });
+            }
+        }
+        const app = new AttendanceApp();
+    </script>
+</body>
+
+</html>
