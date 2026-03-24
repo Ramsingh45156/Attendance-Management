@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendify | Java Backend</title>
+    <title>Attendify | Multi-Class Attendance</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -13,6 +13,50 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .class-badge {
+            background: rgba(61, 123, 130, 0.2);
+            color: #3d7b82;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-table td {
+            font-size: 0.9rem;
+        }
+
+        .type-in {
+            color: #48bb78;
+            font-weight: 600;
+        }
+
+        .type-out {
+            color: #f56565;
+            font-weight: 600;
+        }
+
+        .class-card {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .class-card:hover {
+            transform: translateY(-3px);
+            border-color: #3d7b82;
+            background: rgba(61, 123, 130, 0.05);
+        }
+
+        .class-card.active {
+            border-color: #3d7b82;
+            background: rgba(61, 123, 130, 0.1);
+        }
+    </style>
 </head>
 
 <body>
@@ -27,6 +71,12 @@
                 <a href="javascript:void(0)" class="nav-item" data-view="students" onclick="app.switchView('students')">
                     <i data-lucide="users"></i><span>Students</span>
                 </a>
+                <a href="javascript:void(0)" class="nav-item" data-view="classes" onclick="app.switchView('classes')">
+                    <i data-lucide="folder"></i><span>Classes</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item" data-view="history" onclick="app.switchView('history')">
+                    <i data-lucide="history"></i><span>System Logs</span>
+                </a>
                 <a href="javascript:void(0)" class="nav-item" data-view="analytics"
                     onclick="app.switchView('analytics')">
                     <i data-lucide="bar-chart-3"></i><span>Analytics</span>
@@ -38,9 +88,10 @@
                     <input type="number" id="ts-input" class="small-input" onchange="app.setSessions(this.value)">
                 </div>
                 <div class="user-info">
-                    <div class="avatar">AD</div>
+                    <div class="avatar" id="class-avatar">??</div>
                     <div class="details">
-                        <p class="name">Admin</p>
+                        <p class="name" id="current-class-name">Loading...</p>
+                        <p style="font-size: 0.7rem; color: #94a3b8;">Active Class</p>
                     </div>
                 </div>
             </div>
@@ -52,81 +103,213 @@
                     <i data-lucide="search"></i>
                     <input type="text" id="g-search" placeholder="Search students..." oninput="app.render()">
                 </div>
-                <button class="btn btn-primary" onclick="app.showModal()">Add Student</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" onclick="app.switchView('classes')"><i data-lucide="folder-sync"
+                            style="width: 18px; height: 18px;"></i> Switch Class</button>
+                </div>
             </header>
 
             <section id="dashboard-view" class="view active">
+                <div class="welcome-banner"
+                    style="background: linear-gradient(135deg, rgba(61,123,130,0.85), rgba(44,90,95,0.9)), url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop'); background-size: cover; background-position: center; border-radius: 20px; padding: 40px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(61,123,130,0.2); position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+                    <div style="position: relative; z-index: 2;">
+                        <h1
+                            style="font-size: 2.2rem; margin-bottom: 10px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.3); font-weight: 700;">
+                            Welcome to <span style="color: #68d391;">Attendify</span></h1>
+                        <p style="color: rgba(255,255,255,0.85); font-size: 1rem; max-width: 500px; line-height: 1.5;">
+                            Manage your classes efficiently. Track attendance records, visualize performance, and
+                            monitor live student activity all from this control center.</p>
+                        <div style="margin-top: 25px; display: flex; gap: 15px;">
+                            <button class="btn btn-primary" onclick="app.switchView('students')"
+                                style="background: #fff; color: #3d7b82; border: none; box-shadow: 0 4px 15px rgba(255,255,255,0.2);"><i
+                                    data-lucide="users" style="color: #3d7b82;"></i> Manage Students</button>
+                            <button class="btn btn-outline" onclick="app.switchView('analytics')"
+                                style="border-color: rgba(255,255,255,0.4); color: #fff; background: rgba(0,0,0,0.2);"><i
+                                    data-lucide="pie-chart"></i> View Analytics</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="icon-bg teal"><i data-lucide="users"></i></div>
                         <div class="stat-info">
                             <h3 id="s-total">0</h3>
-                            <p>Total</p>
+                            <p>Total Students</p>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="icon-bg purple"><i data-lucide="user-check"></i></div>
                         <div class="stat-info">
                             <h3 id="s-in">0</h3>
-                            <p>In Class</p>
+                            <p>In Class Now</p>
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="icon-bg gold"><i data-lucide="percent"></i></div>
+                        <div class="icon-bg gold"><i data-lucide="calendar"></i></div>
                         <div class="stat-info">
                             <h3 id="s-avg">0%</h3>
-                            <p>Avg %</p>
+                            <p>Avg Attendance</p>
                         </div>
                     </div>
                 </div>
-                <div class="card">
-                    <table id="dash-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Roll</th>
-                                <th>Status</th>
-                                <th>Attend %</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dash-list"></tbody>
-                    </table>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+                    <div class="card" style="padding: 24px; display: flex; flex-direction: column;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="font-size: 1.2rem; color: var(--text-main); font-family: 'Outfit', sans-serif;">
+                                <i data-lucide="list-checks"
+                                    style="vertical-align: middle; margin-right: 8px; color: var(--accent);"></i>Live
+                                Roster
+                            </h3>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table id="dash-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Roll</th>
+                                        <th>Status</th>
+                                        <th>Attend %</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dash-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding: 24px; display: flex; flex-direction: column;">
+                        <h3
+                            style="font-size: 1.2rem; color: var(--text-main); font-family: 'Outfit', sans-serif; margin-bottom: 20px;">
+                            <i data-lucide="activity"
+                                style="vertical-align: middle; margin-right: 8px; color: #805ad5;"></i>Recent Activity
+                        </h3>
+                        <div id="live-feed"
+                            style="display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto; max-height: 480px; padding-right: 10px; scrollbar-width: thin; overflow-x: hidden;">
+                            <!-- Activity items populated via JS -->
+                        </div>
+                    </div>
                 </div>
             </section>
 
             <section id="students-view" class="view">
-                <div class="card">
-                    <table id="manage-table">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: rgba(30, 34, 45, 0.7); padding: 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08);">
+                    <div>
+                        <h2 style="margin-bottom: 5px;">Class Details</h2>
+                        <p style="color: #94a3b8; font-size: 0.9rem;">Manage all enrolled students in your current class
+                            folder.</p>
+                    </div>
+                    <button class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;"
+                        onclick="app.showModal()"><i data-lucide="user-plus" style="width: 20px; height: 20px;"></i> Add
+                        New Student</button>
+                </div>
+                <div class="stats-grid" id="manage-list"
+                    style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
+                    <!-- Student Cards will be rendered here -->
+                </div>
+            </section>
+
+            <section id="classes-view" class="view">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Class List</h2>
+                    <button class="btn btn-primary" onclick="app.showClassModal()">New Class Folder</button>
+                </div>
+                <div class="stats-grid" id="class-grid"
+                    style="grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
+                    <!-- Class cards go here -->
+                </div>
+            </section>
+
+            <section id="history-view" class="view">
+                <div class="card" style="padding: 20px; margin-bottom: 20px; background: rgba(255,255,255,0.03);">
+                    <h2 style="margin-bottom: 15px;">Search Student History</h2>
+                    <div style="display: flex; gap: 15px; align-items: flex-end;">
+                        <div class="form-group" style="margin: 0; flex: 1;">
+                            <label>Course Name</label>
+                            <input type="text" id="h-search-course" placeholder="e.g. BCA">
+                        </div>
+                        <div class="form-group" style="margin: 0; flex: 1;">
+                            <label>Roll Number</label>
+                            <input type="number" id="h-search-roll" placeholder="e.g. 501">
+                        </div>
+                        <button class="btn btn-primary" onclick="app.searchHistory()">View Logs</button>
+                    </div>
+                </div>
+
+                <div class="card" id="history-results" style="display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px;">
+                        <h2 id="history-results-title">Logs</h2>
+                        <button class="btn btn-sm btn-outline" onclick="app.searchHistory()">Refresh</button>
+                    </div>
+                    <table class="history-table">
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th>Date & Time</th>
                                 <th>Roll</th>
+                                <th>Student Name</th>
+                                <th>Event</th>
                                 <th>Course</th>
-                                <th>Total</th>
-                                <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody id="manage-list"></tbody>
+                        <tbody id="history-list"></tbody>
                     </table>
                 </div>
             </section>
 
             <section id="analytics-view" class="view">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="icon-bg teal"><i data-lucide="award"></i></div>
+                        <div class="stat-info">
+                            <h3 id="a-best">0</h3>
+                            <p>Perfect Attendance</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-bg gold"><i data-lucide="alert-triangle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="a-low">0</h3>
+                            <p>Low Attendance (<50%)< /p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-bg purple"><i data-lucide="clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="a-today">0</h3>
+                            <p>Check-ins Today</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="analytics-grid">
-                    <div class="card"><canvas id="perfChart"></canvas></div>
-                    <div class="card"><canvas id="courseChart"></canvas></div>
+                    <div class="card">
+                        <h3 style="margin-bottom: 15px; color: var(--text-dim); font-size: 1rem;">Student Performance
+                        </h3>
+                        <canvas id="perfChart"></canvas>
+                    </div>
+                    <div class="card">
+                        <h3 style="margin-bottom: 15px; color: var(--text-dim); font-size: 1rem;">Course Distribution
+                        </h3>
+                        <canvas id="courseChart"></canvas>
+                    </div>
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <h3 style="margin-bottom: 15px; color: var(--text-dim); font-size: 1rem;">Daily Check-ins</h3>
+                        <canvas id="activityChart"></canvas>
+                    </div>
                 </div>
             </section>
         </main>
     </div>
 
+    <!-- Modals -->
     <div id="student-modal" class="modal">
         <div class="modal-content card animate-in">
             <h2>New Student</h2>
             <form id="s-form" onsubmit="app.addStudent(event)">
                 <div class="form-group"><label>Name</label><input type="text" id="m-name" required></div>
-                <div class="form-group"><label>Roll</label><input type="number" id="m-roll" required></div>
                 <div class="form-group"><label>Course</label><input type="text" id="m-course" required></div>
                 <div style="display:flex;gap:10px;">
                     <button type="submit" class="btn btn-primary btn-block">Add</button>
@@ -136,10 +319,46 @@
         </div>
     </div>
 
+    <div id="class-modal" class="modal">
+        <div class="modal-content card animate-in">
+            <h2>Create Class Folder</h2>
+            <form id="c-form" onsubmit="app.addClass(event)">
+                <div class="form-group"><label>Folder Name</label><input type="text" id="c-name"
+                        placeholder="e.g. BCA-2024" required></div>
+                <div style="display:flex;gap:10px;">
+                    <button type="submit" class="btn btn-primary btn-block">Create</button>
+                    <button type="button" class="btn btn-outline" onclick="app.hideClassModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="log-modal" class="modal">
+        <div class="modal-content card animate-in" style="max-width: 600px;">
+            <h2 id="log-title">Student History</h2>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Event</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-log-list"></tbody>
+                </table>
+            </div>
+            <button class="btn btn-outline btn-block" style="margin-top: 20px;"
+                onclick="app.hideLogModal()">Close</button>
+        </div>
+    </div>
+
     <script>
         class AttendanceApp {
             constructor() {
                 this.students = [];
+                this.classes = [];
+                this.history = [];
+                this.currentClass = "";
                 this.totalSessions = parseInt(localStorage.getItem('totalSessions')) || 20;
                 this.charts = {};
                 this.init();
@@ -147,64 +366,278 @@
 
             async init() {
                 document.getElementById('ts-input').value = this.totalSessions;
+                await this.fetchCurrentClass();
+                await this.fetchClasses();
                 await this.fetchStudents();
+                await this.fetchHistory();
                 this.render();
                 lucide.createIcons();
+            }
+
+            async fetchCurrentClass() {
+                try {
+                    const res = await fetch('/api/currentClass');
+                    const data = await res.json();
+                    this.currentClass = data.className;
+                    document.getElementById('current-class-name').innerText = this.currentClass;
+                    document.getElementById('class-avatar').innerText = this.currentClass.substring(0, 2).toUpperCase();
+                } catch (e) { console.error(e); }
+            }
+
+            async fetchClasses() {
+                try {
+                    const res = await fetch('/api/classes');
+                    this.classes = await res.json();
+                } catch (e) { console.error(e); }
             }
 
             async fetchStudents() {
                 try {
                     const res = await fetch('/api/students');
                     this.students = await res.json();
-                } catch (e) { console.error("Fetch failed", e); }
+                } catch (e) { console.error(e); }
+            }
+
+            async fetchHistory() {
+                try {
+                    const res = await fetch('/api/history');
+                    this.history = await res.json();
+                } catch (e) { console.error(e); }
             }
 
             render() {
                 const term = document.getElementById('g-search').value.toLowerCase();
-                const filtered = this.students.filter(s => 
-                    s.name.toLowerCase().includes(term) || 
+                const filtered = this.students.filter(s =>
+                    s.name.toLowerCase().includes(term) ||
                     String(s.roll).includes(term)
                 );
 
-                const dashList = document.getElementById('dash-list');
-                const manageList = document.getElementById('manage-list');
+                this.renderDashboard(filtered);
+                this.renderManage(filtered);
+                this.renderClasses();
+                this.renderHistory();
+                this.updateStats();
+                lucide.createIcons();
+            }
 
-                dashList.innerHTML = filtered.map(s => {
-                    const perc = ((s.count / this.totalSessions) * 100).toFixed(0);
+            renderDashboard(data) {
+                const list = document.getElementById('dash-list');
+                list.innerHTML = data.map(s => {
+                    const perc = Math.min(100, ((s.count / this.totalSessions) * 100).toFixed(0));
+                    const isCompleted = s.count >= this.totalSessions;
+                    const actionBtn = isCompleted
+                        ? `<span class="badge success" style="padding: 6px 14px; font-size: 0.85rem;">🎓 Completed</span>`
+                        : `<button onclick="app.toggle('${s.roll}', ${s.isIn})" class="btn btn-sm ${s.isIn ? 'btn-primary' : 'btn-outline'}">${s.isIn ? 'Out' : 'In'}</button>`;
                     return `<tr>
                         <td><div style="display:flex;align-items:center;gap:10px;"><div class="avatar" style="width:30px;height:30px;font-size:0.8rem">${s.name.substring(0, 2).toUpperCase()}</div>${s.name}</div></td>
                         <td>#${s.roll}</td>
                         <td><span class="badge ${s.isIn ? 'warning' : 'success'}">${s.isIn ? 'In Class' : 'Available'}</span></td>
                         <td><div style="display:flex;align-items:center;gap:8px">${perc}% <div class="progress-container"><div class="progress-bar" style="width:${perc}%"></div></div></div></td>
-                        <td><button onclick="app.toggle('${s.roll}', ${s.isIn})" class="btn btn-sm ${s.isIn ? 'btn-primary' : 'btn-outline'}">${s.isIn ? 'Out' : 'In'}</button></td>
+                        <td>${actionBtn}</td>
                     </tr>`;
                 }).join('');
 
-                manageList.innerHTML = filtered.map(s => `<tr>
-                    <td><b>${s.name}</b></td><td>#${s.roll}</td><td>${s.course}</td><td>${s.count}/${this.totalSessions}</td>
-                    <td><button onclick="app.delete('${s.roll}')" class="btn btn-sm btn-outline" style="color:#f56565">Delete</button></td>
-                </tr>`).join('');
+                const feed = document.getElementById('live-feed');
+                if (feed) {
+                    const recentLogs = this.history.slice().reverse().slice(0, 8);
+                    if (recentLogs.length === 0) {
+                        feed.innerHTML = `<div style="text-align:center; color: var(--text-dim); padding: 20px;">No recent activity.</div>`;
+                    } else {
+                        feed.innerHTML = recentLogs.map(log => {
+                            const isIn = log.type === 'IN';
+                            const color = isIn ? '#48bb78' : '#f56565';
+                            const icon = isIn ? 'log-in' : 'log-out';
+                            const timeStr = log.time.split(' ').length > 1 ? log.time.split(' ')[1].substring(0, 5) : log.time;
+                            return `
+                            <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); transition: transform 0.2s; cursor: default;" onmouseover="this.style.transform='translateX(5px)'; this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.transform='none'; this.style.background='rgba(255,255,255,0.02)'">
+                                <div style="width: 36px; height: 36px; border-radius: 50%; background: ${color}20; color: ${color}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i data-lucide="${icon}" style="width: 16px; height: 16px;"></i>
+                                </div>
+                                <div style="flex: 1; overflow: hidden;">
+                                    <p style="margin: 0; font-size: 0.9rem; color: #fff; font-weight: 500; white-space: nowrap; text-overflow: ellipsis;">${log.name}</p>
+                                    <p style="margin: 2px 0 0; font-size: 0.75rem; color: var(--text-dim);">Checked ${isIn ? 'in' : 'out'} &middot; <span style="font-family: monospace;">#${log.roll}</span></p>
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--text-dim); font-family: monospace; font-weight: 600;">
+                                    ${timeStr}
+                                </div>
+                            </div>`;
+                        }).join('');
+                    }
+                }
+            }
 
-                this.updateStats();
+            renderManage(data) {
+                const list = document.getElementById('manage-list');
+                if (data.length === 0) {
+                    list.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #a0aec0;">No students found.</div>`;
+                    return;
+                }
+                list.innerHTML = data.map(s => {
+                    const perc = Math.min(100, ((s.count / this.totalSessions) * 100).toFixed(0));
+                    const badgeColor = perc >= 75 ? '#48bb78' : (perc >= 50 ? '#ecc94b' : '#f56565');
+                    return `
+                    <div class="stat-card" style="position:relative; display:flex; flex-direction:column; gap:15px; padding:20px; text-align:left;">
+                        <span class="badge" style="position:absolute; top:20px; right:20px; background:rgba(61,123,130,0.1); color:#3d7b82; border: 1px solid rgba(61,123,130,0.3);">${s.course}</span>
+                        <div style="display:flex; align-items:center; gap:15px;">
+                            <div class="avatar" style="width:50px; height:50px; font-size:1.2rem; background:linear-gradient(135deg, #3d7b82, #2c5a5f); box-shadow:0 4px 10px rgba(61,123,130,0.3); flex-shrink:0;">${s.name.substring(0, 2).toUpperCase()}</div>
+                            <div style="overflow: hidden;">
+                                <h3 style="margin:0; font-size:1.1rem; color:#e2e8f0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">${s.name}</h3>
+                                <p style="margin:2px 0 0 0; font-size:0.85rem; color:#a0aec0; font-family: monospace;">Roll: #${s.roll}</p>
+                            </div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:0.85rem;">
+                                <span style="color:#a0aec0;"><i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>Attendance</span>
+                                <span style="color:${badgeColor}; font-weight:bold;">${s.count} / ${this.totalSessions} (${perc}%)</span>
+                            </div>
+                            <div class="progress-container" style="height:6px; background:rgba(0,0,0,0.3);"><div class="progress-bar" style="width:${perc}%; background:${badgeColor}; box-shadow:0 0 8px ${badgeColor}40;"></div></div>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            <button class="btn btn-outline" style="flex:1; display:flex; justify-content:center; align-items:center; gap:6px; padding:8px 10px; font-size: 0.85rem;" onclick="app.showStudentHistory('${s.roll}', '${s.name}')"><i data-lucide="history" style="width:16px;height:16px;"></i> Logs</button>
+                            <button class="btn btn-outline" style="flex:1; display:flex; justify-content:center; align-items:center; gap:6px; padding:8px 10px; color:#f56565; border-color:rgba(245,101,101,0.2); font-size: 0.85rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(245,101,101,0.1)'" onmouseout="this.style.background='transparent'" onclick="app.deleteStudent('${s.roll}')"><i data-lucide="trash-2" style="width:16px;height:16px;"></i> Delete</button>
+                        </div>
+                    </div>`;
+                }).join('');
                 lucide.createIcons();
             }
 
-            async toggle(roll, isCurrentlyIn) {
-                await fetch('/api/toggle', {
-                    method: 'POST',
-                    body: `roll=${roll}&isCurrentlyIn=${isCurrentlyIn}`
+            renderClasses() {
+                const grid = document.getElementById('class-grid');
+                // Auto-detect batch completion: all students at or above 100% attendance
+                const allComplete = this.students.length > 0 &&
+                    this.students.every(s => s.count >= this.totalSessions);
+
+                grid.innerHTML = this.classes.map(c => {
+                    const isActive = c.name === this.currentClass;
+                    const isBatchComplete = isActive && allComplete;
+                    let statusLabel;
+                    if (isActive) {
+                        if (isBatchComplete) {
+                            statusLabel = `<span style="color:#f56565; font-weight:bold;">🎓 Batch Completed</span>`;
+                        } else {
+                            statusLabel = `<span style="color:#48bb78; font-weight:bold;">✅ Currently Active</span>`;
+                        }
+                    } else {
+                        statusLabel = `<span style="color:#a0aec0;">Click to Switch</span>`;
+                    }
+                    return `
+                    <div class="stat-card class-card ${isActive ? 'active' : ''}" onclick="app.switchClass('${c.name}')" style="cursor:pointer;">
+                        <div class="icon-bg teal"><i data-lucide="folder"></i></div>
+                        <div class="stat-info">
+                            <h3>${c.name}</h3>
+                            <p>${statusLabel}</p>
+                        </div>
+                    </div>`;
+                }).join('');
+                lucide.createIcons();
+            }
+
+            searchHistory() {
+                const course = document.getElementById('h-search-course').value.toLowerCase();
+                const roll = document.getElementById('h-search-roll').value;
+
+                if (!course && !roll) {
+                    alert("Please enter Course or Roll Number to search.");
+                    return;
+                }
+
+                const filtered = this.history.filter(h => {
+                    const matchCourse = !course || (h.course && h.course.toLowerCase().includes(course));
+                    const matchRoll = !roll || String(h.roll) === roll;
+                    return matchCourse && matchRoll;
                 });
+
+                const list = document.getElementById('history-list');
+                const resultsDiv = document.getElementById('history-results');
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">No logs found for this student.</td></tr>';
+                } else {
+                    list.innerHTML = filtered.slice().reverse().map(h => `
+                        <tr>
+                            <td>${h.time}</td>
+                            <td>#${h.roll}</td>
+                            <td>${h.name}</td>
+                            <td><span class="${h.type === 'IN' ? 'type-in' : 'type-out'}">${h.type === 'IN' ? 'CHECKED IN' : 'CHECKED OUT'}</span></td>
+                            <td>${h.course || 'N/A'}</td>
+                        </tr>
+                    `).join('');
+                }
+                resultsDiv.style.display = 'block';
+                document.getElementById('history-results-title').innerText = `Logs for Roll: ${roll || 'Any'} | Course: ${course || 'Any'}`;
+                lucide.createIcons();
+            }
+
+            renderHistory() {
+                // Now handled by searchHistory call
+            }
+
+            async toggle(roll, isCurrentlyIn) {
+                await fetch('/api/toggle', { method: 'POST', body: `roll=${roll}&isCurrentlyIn=${isCurrentlyIn}` });
+                await this.refreshData();
+            }
+
+            async deleteStudent(roll) {
+                if (confirm('Delete student?')) {
+                    await fetch('/api/delete', { method: 'POST', body: `roll=${roll}` });
+                    await this.refreshData();
+                }
+            }
+
+            async switchClass(name) {
+                await fetch('/api/switchClass', { method: 'POST', body: `name=${encodeURIComponent(name)}` });
+                await this.init();
+                this.switchView('dashboard');
+            }
+
+            async addClass(e) {
+                e.preventDefault();
+                const name = document.getElementById('c-name').value;
+                await fetch('/api/addClass', { method: 'POST', body: `name=${encodeURIComponent(name)}` });
+                this.hideClassModal();
+                await this.init();
+            }
+
+            async addStudent(e) {
+                e.preventDefault();
+                const name = document.getElementById('m-name').value;
+                const course = document.getElementById('m-course').value;
+                const res = await fetch('/api/add', { method: 'POST', body: `name=${encodeURIComponent(name)}&course=${encodeURIComponent(course)}` });
+                const data = await res.json();
+                if (data.status === 'error') alert(data.message);
+                else { this.hideModal(); await this.refreshData(); }
+            }
+
+            async refreshData() {
                 await this.fetchStudents();
+                await this.fetchHistory();
                 this.render();
             }
 
-            async delete(roll) {
-                await fetch('/api/delete', {
-                    method: 'POST',
-                    body: `roll=${roll}`
+            showStudentHistory(roll, name) {
+                document.getElementById('log-title').innerText = `Logs for ${name} (#${roll})`;
+                const list = document.getElementById('student-log-list');
+                const logs = this.history.filter(h => h.roll === roll);
+                list.innerHTML = logs.slice().reverse().map(h => `
+                    <tr><td>${h.time}</td><td><span class="${h.type === 'IN' ? 'type-in' : 'type-out'}">${h.type}</span></td></tr>
+                `).join('') || '<tr><td colspan="2">No logs found</td></tr>';
+                document.getElementById('log-modal').style.display = 'block';
+            }
+
+            hideLogModal() { document.getElementById('log-modal').style.display = 'none'; }
+            showModal() { document.getElementById('student-modal').style.display = 'block'; }
+            hideModal() { document.getElementById('student-modal').style.display = 'none'; document.getElementById('s-form').reset(); }
+            showClassModal() { document.getElementById('class-modal').style.display = 'block'; }
+            hideClassModal() { document.getElementById('class-modal').style.display = 'none'; document.getElementById('c-form').reset(); }
+
+            switchView(view) {
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById(view + '-view').classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n => {
+                    n.classList.remove('active');
+                    if (n.dataset.view === view) n.classList.add('active');
                 });
-                await this.fetchStudents();
-                this.render();
+                if (view === 'analytics') this.renderCharts();
             }
 
             setSessions(val) {
@@ -217,48 +650,89 @@
                 document.getElementById('s-total').innerText = this.students.length;
                 document.getElementById('s-in').innerText = this.students.filter(s => s.isIn).length;
                 const totalPossible = this.students.length * this.totalSessions;
-                const totalActual = this.students.reduce((acc, s) => acc + s.count, 0);
-                const avg = totalPossible > 0 ? ((totalActual / totalPossible) * 100).toFixed(1) : 0;
+                const totalActual = this.students.reduce((acc, s) => acc + Math.min(s.count, this.totalSessions), 0);
+                const avg = totalPossible > 0 ? Math.min(100, ((totalActual / totalPossible) * 100).toFixed(1)) : 0;
                 document.getElementById('s-avg').innerText = avg + '%';
             }
 
-            switchView(view) {
-                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-                document.getElementById(view + '-view').classList.add('active');
-                document.querySelectorAll('.nav-item').forEach(n => {
-                    n.classList.remove('active');
-                    if (n.dataset.view === view) n.classList.add('active');
-                });
-                if (view === 'analytics') this.renderCharts();
-            }
-
-            showModal() { document.getElementById('student-modal').style.display = 'block'; }
-            hideModal() { document.getElementById('student-modal').style.display = 'none'; document.getElementById('s-form').reset(); }
-
-            async addStudent(e) {
-                e.preventDefault();
-                const roll = document.getElementById('m-roll').value;
-                const name = document.getElementById('m-name').value;
-                const course = document.getElementById('m-course').value;
-
-                await fetch('/api/add', {
-                    method: 'POST',
-                    body: `name=${encodeURIComponent(name)}&roll=${roll}&course=${encodeURIComponent(course)}`
-                });
-
-                this.hideModal();
-                await this.fetchStudents();
-                this.render();
-            }
-
             renderCharts() {
+                const perfectCount = this.students.filter(s => s.count >= this.totalSessions).length;
+                const lowCount = this.students.filter(s => (s.count / this.totalSessions) < 0.5).length;
+                const todayStr = new Date().toISOString().split('T')[0];
+                const todayCheckins = this.history.filter(h => h.time.startsWith(todayStr) && h.type === 'IN').length;
+
+                document.getElementById('a-best').innerText = perfectCount;
+                document.getElementById('a-low').innerText = lowCount;
+                document.getElementById('a-today').innerText = todayCheckins;
+
                 const ctxPerf = document.getElementById('perfChart').getContext('2d');
                 const ctxCourse = document.getElementById('courseChart').getContext('2d');
+                const ctxActivity = document.getElementById('activityChart').getContext('2d');
+
                 if (this.charts.perf) this.charts.perf.destroy();
                 if (this.charts.course) this.charts.course.destroy();
-                this.charts.perf = new Chart(ctxPerf, { type: 'bar', data: { labels: this.students.map(s => s.name), datasets: [{ label: 'Sessions', data: this.students.map(s => s.count), backgroundColor: '#3d7b82' }] } });
+                if (this.charts.activity) this.charts.activity.destroy();
+
+                this.charts.perf = new Chart(ctxPerf, {
+                    type: 'bar',
+                    data: {
+                        labels: this.students.map(s => s.name),
+                        datasets: [{
+                            label: 'Sessions',
+                            data: this.students.map(s => Math.min(s.count, this.totalSessions)),
+                            backgroundColor: '#3d7b82',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: { responsive: true, scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+                });
+
                 const cMap = {}; this.students.forEach(s => cMap[s.course] = (cMap[s.course] || 0) + 1);
-                this.charts.course = new Chart(ctxCourse, { type: 'doughnut', data: { labels: Object.keys(cMap), datasets: [{ data: Object.values(cMap), backgroundColor: ['#3d7b82', '#805ad5', '#d69e2e'] }] } });
+                this.charts.course = new Chart(ctxCourse, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(cMap),
+                        datasets: [{
+                            data: Object.values(cMap),
+                            backgroundColor: ['#3d7b82', '#805ad5', '#d69e2e', '#e53e3e', '#3182ce'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { responsive: true, cutout: '70%', plugins: { legend: { labels: { color: '#e2e8f0' } } } }
+                });
+
+                const dateMap = {};
+                this.history.forEach(h => {
+                    if (h.type === 'IN') {
+                        const d = h.time.split(' ')[0];
+                        dateMap[d] = (dateMap[d] || 0) + 1;
+                    }
+                });
+
+                const sortedDates = Object.keys(dateMap).sort();
+                const dateCounts = sortedDates.map(d => dateMap[d]);
+
+                this.charts.activity = new Chart(ctxActivity, {
+                    type: 'line',
+                    data: {
+                        labels: sortedDates.length ? sortedDates : ['No Data'],
+                        datasets: [{
+                            label: 'Check-ins',
+                            data: sortedDates.length ? dateCounts : [0],
+                            borderColor: '#805ad5',
+                            backgroundColor: 'rgba(128, 90, 213, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+                lucide.createIcons();
             }
         }
         const app = new AttendanceApp();
